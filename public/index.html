@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Gerador de Ebook de Receitas</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', sans-serif; background: #e8e8e8; display: flex; flex-direction: column; align-items: center; padding: 30px 20px; min-height: 100vh; }
+
+  .controls { width: 794px; background: #fff; border-radius: 12px; padding: 28px; margin-bottom: 24px; box-shadow: 0 2px 12px rgba(0,0,0,0.1); display: flex; flex-direction: column; gap: 16px; }
+  .controls h1 { font-size: 20px; font-weight: 700; color: #1a1a1a; }
+  .controls p { font-size: 13px; color: #666; line-height: 1.6; }
+
+  .upload-area { border: 2px dashed #ddd; border-radius: 10px; padding: 32px; text-align: center; cursor: pointer; transition: border-color 0.2s; background: #fafafa; }
+  .upload-area:hover { border-color: #E05A2B; }
+  .upload-area.dragover { border-color: #E05A2B; background: #FDF0EB; }
+  .upload-area input { display: none; }
+  .upload-icon { font-size: 36px; margin-bottom: 8px; }
+  .upload-text { font-size: 14px; font-weight: 600; color: #1a1a1a; margin-bottom: 4px; }
+  .upload-sub { font-size: 12px; color: #888; }
+  .upload-filename { font-size: 13px; color: #E05A2B; font-weight: 600; margin-top: 8px; }
+
+  .info-box { font-size: 12px; color: #444; background: #fff8e1; border: 1px solid #ffe082; border-radius: 6px; padding: 10px 14px; line-height: 1.7; }
+
+  .btn-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .btn { padding: 12px 28px; font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 700; color: #fff; background: #E05A2B; border: none; border-radius: 8px; cursor: pointer; transition: background 0.2s; white-space: nowrap; }
+  .btn:hover { background: #C04820; }
+  .btn:disabled { background: #bbb; cursor: not-allowed; }
+  .btn-blue { background: #1565C0; }
+  .btn-blue:hover { background: #0D47A1; }
+
+  .progress-area { display: none; flex-direction: column; gap: 10px; }
+  .progress-title { font-size: 13px; font-weight: 600; color: #1a1a1a; }
+  .progress-bar-bg { width: 100%; height: 10px; background: #f0f0f0; border-radius: 99px; overflow: hidden; }
+  .progress-bar { height: 100%; background: #E05A2B; border-radius: 99px; transition: width 0.3s; width: 0%; }
+  .progress-status { font-size: 12px; color: #666; }
+  .progress-log { font-size: 11px; color: #888; max-height: 100px; overflow-y: auto; line-height: 1.8; background: #fafafa; padding: 8px; border-radius: 6px; }
+
+  .error-msg { font-size: 12px; color: #c0392b; background: #fdf0ef; border: 1px solid #f5c6c2; border-radius: 6px; padding: 8px 12px; display: none; line-height: 1.5; }
+
+  .preview-title { font-size: 14px; font-weight: 600; color: #555; margin-bottom: 16px; text-align: center; }
+
+  /* A4 */
+  .a4-page { width: 794px; background: #ffffff; box-shadow: 0 2px 12px rgba(0,0,0,0.12); padding: 44px 44px 60px; margin-bottom: 20px; }
+
+  .rp-header { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; }
+  .rp-icon { width: 54px; height: 54px; border-radius: 12px; background: #FDECEA; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .rp-icon svg { width: 28px; height: 28px; stroke: #E05A2B; fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+  .rp-title { font-size: 28px; font-weight: 700; color: #1a1a1a; line-height: 1.2; }
+  .rp-divider { height: 1.5px; background: #E05A2B; margin-bottom: 26px; opacity: 0.7; }
+  .rp-body { display: grid; grid-template-columns: 340px 1fr; gap: 32px; align-items: start; }
+
+  .rp-main-img { width: 100%; aspect-ratio: 4/3; object-fit: cover; border-radius: 10px; display: block; margin-bottom: 18px; }
+  .rp-main-img-ph { width: 100%; aspect-ratio: 4/3; border-radius: 10px; background: #f0f0f0; display: flex; align-items: center; justify-content: center; margin-bottom: 18px; color: #bbb; font-size: 12px; }
+
+  .ing-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .ing-title { font-size: 17px; font-weight: 700; color: #1a1a1a; }
+  .ing-servings { display: flex; align-items: center; gap: 5px; font-size: 13px; color: #666; }
+  .ing-servings svg { width: 14px; height: 14px; }
+
+  .ing-list { list-style: none; }
+  .ing-list li { font-size: 13px; color: #1a1a1a; padding: 7px 0; border-bottom: 1px solid #ececec; line-height: 1.4; }
+  .ing-list li:last-child { border-bottom: none; }
+  .ing-qty { font-weight: 700; }
+
+  .meta-row { display: flex; align-items: center; gap: 20px; margin-top: 14px; }
+  .meta-item { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #555; }
+  .meta-item svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+  .steps-title { font-size: 17px; font-weight: 700; color: #1a1a1a; margin-bottom: 16px; }
+  .step { display: flex; gap: 12px; margin-bottom: 14px; align-items: flex-start; }
+  .step-num { width: 28px; height: 28px; border-radius: 50%; background: #E05A2B; color: #fff; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .step-body { flex: 1; }
+  .step-text { font-size: 13px; color: #1a1a1a; line-height: 1.6; margin-bottom: 6px; }
+  .step-img { width: 86px; height: 64px; object-fit: cover; border-radius: 7px; display: block; }
+</style>
+</head>
+<body>
+
+<div class="controls">
+  <h1>📖 Gerador de Ebook de Receitas</h1>
+  <p>Envie um arquivo <strong>.txt</strong> com todas as suas receitas numeradas. O sistema gera todas as páginas automaticamente e entrega um <strong>único PDF</strong> com todas as receitas — um ebook completo!</p>
+
+  <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+    <input type="file" id="fileInput" accept=".txt" onchange="handleFile(this.files[0])" />
+    <div class="upload-icon">📄</div>
+    <div class="upload-text">Clique aqui para selecionar o arquivo .txt</div>
+    <div class="upload-sub">ou arraste o arquivo aqui</div>
+    <div class="upload-filename" id="uploadFilename"></div>
+  </div>
+
+  <div class="info-box">
+    📌 <strong>Formato:</strong> receitas numeradas (1. Nome, 2. Nome...) com rendimento, tempo, kcal, ingredientes e passos — igual ao formato que você já usa.<br>
+    ⏱ <strong>Tempo:</strong> ~40 seg por lote de 5 receitas. 500 receitas ≈ 1h40min rodando sozinho.<br>
+    💰 <strong>Custo:</strong> ~$0,008 por receita. 500 receitas ≈ $4,00.
+  </div>
+
+  <div class="btn-row">
+    <button class="btn" id="btnGerar" onclick="startGeneration()" disabled>▶ Gerar Ebook</button>
+    <button class="btn btn-blue" id="btnDownload" onclick="downloadEbook()" disabled>⬇ Baixar Ebook PDF</button>
+  </div>
+
+  <div class="progress-area" id="progressArea">
+    <div class="progress-title" id="progressTitle">Processando...</div>
+    <div class="progress-bar-bg"><div class="progress-bar" id="progressBar"></div></div>
+    <div class="progress-status" id="progressStatus"></div>
+    <div class="progress-log" id="progressLog"></div>
+  </div>
+
+  <div class="error-msg" id="errorBox"></div>
+</div>
+
+<div id="previewContainer"></div>
+
+<script>
+const CLAUDE_MODEL = "claude-sonnet-4-20250514";
+let parsedRecipes = [];
+let generatedPages = [];
+
+const uploadArea = document.getElementById('uploadArea');
+uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.classList.add('dragover'); });
+uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+uploadArea.addEventListener('drop', e => { e.preventDefault(); uploadArea.classList.remove('dragover'); handleFile(e.dataTransfer.files[0]); });
+
+function handleFile(file) {
+  if (!file || !file.name.endsWith('.txt')) { showError('Por favor envie um arquivo .txt'); return; }
+  document.getElementById('uploadFilename').textContent = '✅ ' + file.name;
+  const reader = new FileReader();
+  reader.onload = e => {
+    parsedRecipes = parseRecipes(e.target.result);
+    if (parsedRecipes.length === 0) { showError('Nenhuma receita encontrada. Verifique o formato.'); return; }
+    clearError();
+    document.getElementById('btnGerar').disabled = false;
+    document.getElementById('progressArea').style.display = 'flex';
+    document.getElementById('progressTitle').textContent = `${parsedRecipes.length} receitas encontradas — pronto para gerar!`;
+    document.getElementById('progressBar').style.width = '0%';
+    document.getElementById('progressStatus').textContent = '';
+    log(`✅ ${parsedRecipes.length} receitas identificadas no arquivo.`);
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+function parseRecipes(text) {
+  const parts = text.split(/\n(?=\d+\.\s+\S)/);
+  return parts.map(p => p.trim()).filter(p => p.length > 50);
+}
+
+function showProgress(title, current, total) {
+  document.getElementById('progressArea').style.display = 'flex';
+  document.getElementById('progressTitle').textContent = title;
+  const pct = total > 0 ? Math.round((current / total) * 100) : 0;
+  document.getElementById('progressBar').style.width = pct + '%';
+  document.getElementById('progressStatus').textContent = total > 0 ? `${current} de ${total} receitas (${pct}%)` : '';
+}
+
+function log(msg) {
+  const el = document.getElementById('progressLog');
+  el.innerHTML += msg + '<br>';
+  el.scrollTop = el.scrollHeight;
+}
+
+function showError(msg) { const b = document.getElementById('errorBox'); b.textContent = msg; b.style.display = 'block'; }
+function clearError() { const b = document.getElementById('errorBox'); b.textContent = ''; b.style.display = 'none'; }
+
+async function generateDalleImage(prompt) {
+  try {
+    const res = await fetch('/api/dalle', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt })
+    });
+    const d = await res.json();
+    return d.image || null;
+  } catch { return null; }
+}
+
+async function callClaude(recipeText) {
+  const prompt = `Analise esta receita e retorne APENAS JSON válido, sem markdown, sem backticks:
+{"titulo":"Nome completo","servings":"X porção/porções","tempo":"XX min","calorias":"≈ XXX kcal/porção","ingredientes":[{"qty":"quantidade+unidade","nome":"nome do ingrediente"}],"passos":[{"texto":"texto completo","dallePrompt":"detailed English prompt for DALL-E 2: realistic food photo of this cooking step, natural lighting, no text"}],"mainDallePrompt":"English prompt for DALL-E 2: beautiful appetizing photo of the final dish, food photography, natural lighting, no text","passosComImagem":[0,2,4]}
+
+Regras: qty=quantidade+unidade, nome=ingrediente, passosComImagem=3 passos mais visuais.
+Receita:\n${recipeText}`;
+
+  const res = await fetch('/api/claude', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: CLAUDE_MODEL, max_tokens: 2000, messages: [{ role: "user", content: prompt }] })
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(JSON.stringify(data.error));
+  const raw = data.content?.[0]?.text || '';
+  const match = raw.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error('JSON não encontrado');
+  return JSON.parse(match[0]);
+}
+
+async function processRecipe(recipeText, index) {
+  try {
+    log(`🔄 Receita ${index + 1}: interpretando...`);
+    const recipe = await callClaude(recipeText);
+    log(`🎨 Receita ${index + 1} (${recipe.titulo}): gerando imagens...`);
+    const mainImg = await generateDalleImage(recipe.mainDallePrompt);
+    const stepImgMap = {};
+    await Promise.all((recipe.passosComImagem || []).map(async (idx) => {
+      if (recipe.passos[idx]) stepImgMap[idx] = await generateDalleImage(recipe.passos[idx].dallePrompt);
+    }));
+    log(`✅ Receita ${index + 1} pronta!`);
+    return { recipe, mainImg, stepImgMap };
+  } catch(e) {
+    log(`❌ Receita ${index + 1}: erro — ${e.message}`);
+    return null;
+  }
+}
+
+async function startGeneration() {
+  if (parsedRecipes.length === 0) return;
+  clearError();
+  generatedPages = [];
+  document.getElementById('previewContainer').innerHTML = '';
+  document.getElementById('btnGerar').disabled = true;
+  document.getElementById('btnDownload').disabled = true;
+
+  const total = parsedRecipes.length;
+  const BATCH = 5;
+  let completed = 0;
+
+  showProgress(`Gerando ${total} receitas...`, 0, total);
+
+  for (let i = 0; i < total; i += BATCH) {
+    const batch = parsedRecipes.slice(i, i + BATCH);
+    const results = await Promise.all(batch.map((r, j) => processRecipe(r, i + j)));
+    for (const result of results) {
+      if (result) { generatedPages.push(result); renderPage(result, generatedPages.length - 1); }
+      completed++;
+      showProgress(`Gerando ${total} receitas...`, completed, total);
+    }
+  }
+
+  showProgress(`✅ ${generatedPages.length} de ${total} receitas geradas com sucesso!`, total, total);
+  document.getElementById('btnGerar').disabled = false;
+  if (generatedPages.length > 0) document.getElementById('btnDownload').disabled = false;
+}
+
+function renderPage(result, idx) {
+  const { recipe, mainImg, stepImgMap } = result;
+  const container = document.getElementById('previewContainer');
+
+  if (idx === 0) {
+    const t = document.createElement('div');
+    t.className = 'preview-title';
+    t.textContent = 'Pré-visualização das páginas geradas:';
+    container.appendChild(t);
+  }
+
+  const page = document.createElement('div');
+  page.className = 'a4-page';
+  page.id = `page-${idx}`;
+
+  const mainImgHtml = mainImg
+    ? `<img class="rp-main-img" src="${mainImg}" alt="${recipe.titulo}" />`
+    : `<div class="rp-main-img-ph">sem imagem</div>`;
+
+  const ings = (recipe.ingredientes || []).map(i =>
+    `<li><span class="ing-qty">${i.qty}</span> ${i.nome}</li>`).join('');
+
+  const steps = (recipe.passos || []).map((s, i) => {
+    const img = stepImgMap[i] ? `<img class="step-img" src="${stepImgMap[i]}" alt="passo ${i+1}" />` : '';
+    return `<div class="step"><div class="step-num">${i+1}</div><div class="step-body"><div class="step-text">${s.texto}</div>${img}</div></div>`;
+  }).join('');
+
+  page.innerHTML = `
+    <div class="rp-header">
+      <div class="rp-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+      <div class="rp-title">${recipe.titulo}</div>
+    </div>
+    <div class="rp-divider"></div>
+    <div class="rp-body">
+      <div class="rp-left">
+        ${mainImgHtml}
+        <div class="ing-header">
+          <div class="ing-title">Ingredientes</div>
+          <div class="ing-servings">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#E05A2B" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            ${recipe.servings}
+          </div>
+        </div>
+        <ul class="ing-list">${ings}</ul>
+        <div class="meta-row">
+          <div class="meta-item"><svg viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>${recipe.tempo}</div>
+          <div class="meta-item"><svg viewBox="0 0 24 24"><path d="M12 2C10 5 7 8.5 7 13a5 5 0 0 0 10 0c0-4.5-3-8-5-11z" fill="#E05A2B"/></svg>${recipe.calorias}</div>
+        </div>
+      </div>
+      <div class="rp-right">
+        <div class="steps-title">Passos</div>
+        ${steps}
+      </div>
+    </div>`;
+
+  container.appendChild(page);
+  page.scrollIntoView({ behavior: 'smooth', block: 'end' });
+}
+
+async function downloadEbook() {
+  if (generatedPages.length === 0) return;
+  document.getElementById('btnDownload').disabled = true;
+  showProgress('Gerando PDF do ebook...', 0, generatedPages.length);
+
+  try {
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const pdfW = pdf.internal.pageSize.getWidth();
+    const pdfH = pdf.internal.pageSize.getHeight();
+
+    for (let i = 0; i < generatedPages.length; i++) {
+      log(`📄 Adicionando página ${i + 1}/${generatedPages.length} ao PDF...`);
+      showProgress('Compilando PDF...', i + 1, generatedPages.length);
+      const pageEl = document.getElementById(`page-${i}`);
+      if (!pageEl) continue;
+      const canvas = await html2canvas(pageEl, { scale: 1.5, useCORS: true, allowTaint: true, backgroundColor: '#ffffff' });
+      const imgData = canvas.toDataURL('image/jpeg', 0.85);
+      const imgH = pdfW * (canvas.height / canvas.width);
+      if (i > 0) pdf.addPage();
+      pdf.addImage(imgData, 'JPEG', 0, 0, pdfW, Math.min(imgH, pdfH));
+    }
+
+    pdf.save('ebook-receitas.pdf');
+    showProgress(`✅ Ebook com ${generatedPages.length} receitas baixado!`, generatedPages.length, generatedPages.length);
+  } catch(e) {
+    showError('Erro ao gerar PDF: ' + e.message);
+  }
+  document.getElementById('btnDownload').disabled = false;
+}
+</script>
+</body>
+</html>
