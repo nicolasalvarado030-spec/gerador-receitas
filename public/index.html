@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Gerador de Receitas — Ebook</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', sans-serif; background: #e8e8e8; display: flex; flex-direction: column; align-items: center; padding: 30px 20px; min-height: 100vh; }
+
+  .controls { width: 794px; background: #fff; border-radius: 12px; padding: 22px 24px; margin-bottom: 24px; box-shadow: 0 2px 12px rgba(0,0,0,0.1); display: flex; flex-direction: column; gap: 12px; }
+  .controls h2 { font-size: 15px; font-weight: 600; color: #1a1a1a; }
+
+  textarea { width: 100%; height: 160px; font-family: 'Inter', sans-serif; font-size: 13px; line-height: 1.6; color: #1a1a1a; background: #fafafa; border: 1px solid #ddd; border-radius: 8px; padding: 12px; resize: vertical; }
+  textarea:focus { outline: none; border-color: #E05A2B; }
+
+  .btn-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .btn { padding: 10px 22px; font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; color: #fff; background: #E05A2B; border: none; border-radius: 7px; cursor: pointer; transition: background 0.2s; white-space: nowrap; }
+  .btn:hover { background: #C04820; }
+  .btn:disabled { background: #bbb; cursor: not-allowed; }
+  .btn-green { background: #2E7D32; }
+  .btn-green:hover { background: #1B5E20; }
+  .btn-blue { background: #1565C0; }
+  .btn-blue:hover { background: #0D47A1; }
+
+  .status { font-size: 12px; color: #666; flex: 1; }
+  .error-msg { font-size: 12px; color: #c0392b; background: #fdf0ef; border: 1px solid #f5c6c2; border-radius: 6px; padding: 8px 12px; display: none; line-height: 1.5; }
+  .info-box { font-size: 12px; color: #444; background: #fff8e1; border: 1px solid #ffe082; border-radius: 6px; padding: 10px 12px; line-height: 1.6; }
+
+  /* A4 */
+  #a4Page { width: 794px; min-height: 1123px; background: #ffffff; box-shadow: 0 4px 30px rgba(0,0,0,0.18); padding: 44px 44px 60px; display: none; }
+
+  .rp-header { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; }
+  .rp-icon { width: 54px; height: 54px; border-radius: 12px; background: #FDECEA; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .rp-icon svg { width: 28px; height: 28px; stroke: #E05A2B; fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+  .rp-title { font-size: 30px; font-weight: 700; color: #1a1a1a; line-height: 1.2; }
+  .rp-divider { height: 1.5px; background: #E05A2B; margin-bottom: 28px; opacity: 0.7; }
+
+  .rp-body { display: grid; grid-template-columns: 360px 1fr; gap: 36px; align-items: start; }
+
+  .rp-main-img { width: 100%; aspect-ratio: 4/3; object-fit: cover; border-radius: 10px; display: block; margin-bottom: 20px; }
+  .rp-main-img-ph { width: 100%; aspect-ratio: 4/3; border-radius: 10px; background: #f5f5f5; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: #aaa; font-size: 13px; margin-bottom: 20px; }
+
+  .spinner { width: 22px; height: 22px; border: 2px solid #ddd; border-top-color: #E05A2B; border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .ing-header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .ing-title { font-size: 18px; font-weight: 700; color: #1a1a1a; }
+  .ing-servings { display: flex; align-items: center; gap: 5px; font-size: 13px; color: #666; }
+  .ing-servings svg { width: 15px; height: 15px; }
+
+  .ing-list { list-style: none; }
+  .ing-list li { font-size: 14px; color: #1a1a1a; padding: 8px 0; border-bottom: 1px solid #ececec; line-height: 1.45; }
+  .ing-list li:last-child { border-bottom: none; }
+  .ing-qty { font-weight: 700; }
+
+  .meta-row { display: flex; align-items: center; gap: 24px; margin-top: 16px; }
+  .meta-item { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #555; }
+  .meta-item svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+  .steps-title { font-size: 18px; font-weight: 700; color: #1a1a1a; margin-bottom: 18px; }
+  .step { display: flex; gap: 14px; margin-bottom: 16px; align-items: flex-start; }
+  .step-num { width: 30px; height: 30px; border-radius: 50%; background: #E05A2B; color: #fff; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .step-body { flex: 1; }
+  .step-text { font-size: 14px; color: #1a1a1a; line-height: 1.65; margin-bottom: 8px; }
+  .step-img { width: 94px; height: 70px; object-fit: cover; border-radius: 8px; display: block; }
+  .step-img-ph { width: 94px; height: 70px; border-radius: 8px; background: #f5f5f5; display: flex; align-items: center; justify-content: center; }
+  .step-img-ph .spinner { width: 16px; height: 16px; }
+</style>
+</head>
+<body>
+
+<div class="controls">
+  <h2>✦ Gerador de Página de Receita para Ebook</h2>
+  <textarea id="recipeInput" placeholder="Cole a receita aqui (título, ingredientes e modo de preparo)..."></textarea>
+  <div class="info-box">🎨 Imagens geradas com <strong>DALL-E 3</strong> — criadas especificamente para cada passo. Aguarde ~60 segundos após clicar em gerar.</div>
+  <div class="btn-row">
+    <button class="btn" id="btnGenerate" onclick="generatePage()">▶ Gerar página</button>
+    <button class="btn btn-green" id="btnPNG" onclick="downloadPNG()" disabled>⬇ Baixar PNG</button>
+    <button class="btn btn-blue" id="btnPDF" onclick="downloadPDF()" disabled>⬇ Baixar PDF</button>
+    <span class="status" id="status"></span>
+  </div>
+  <div class="error-msg" id="errorBox"></div>
+</div>
+
+<div id="a4Page">
+  <div class="rp-header">
+    <div class="rp-icon">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    </div>
+    <div class="rp-title" id="rpTitle"></div>
+  </div>
+  <div class="rp-divider"></div>
+  <div class="rp-body">
+    <div class="rp-left">
+      <div id="rpMainImg"></div>
+      <div class="ing-header">
+        <div class="ing-title">Ingredientes</div>
+        <div class="ing-servings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#E05A2B" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <span id="rpServings"></span>
+        </div>
+      </div>
+      <ul class="ing-list" id="rpIngredients"></ul>
+      <div class="meta-row">
+        <div class="meta-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <span id="rpTempo"></span>
+        </div>
+        <div class="meta-item">
+          <svg viewBox="0 0 24 24"><path d="M12 2C10 5 7 8.5 7 13a5 5 0 0 0 10 0c0-4.5-3-8-5-11z" fill="#E05A2B"/></svg>
+          <span id="rpCalorias"></span>
+        </div>
+      </div>
+    </div>
+    <div class="rp-right">
+      <div class="steps-title">Passos</div>
+      <div id="rpSteps"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const CLAUDE_MODEL = "claude-sonnet-4-20250514";
+let recipeTitle = "receita";
+
+function setStatus(msg) { document.getElementById('status').textContent = msg; }
+function showError(msg) { const b = document.getElementById('errorBox'); b.textContent = msg; b.style.display = 'block'; }
+function clearError() { const b = document.getElementById('errorBox'); b.textContent = ''; b.style.display = 'none'; }
+function enableDownloads() { document.getElementById('btnPNG').disabled = false; document.getElementById('btnPDF').disabled = false; }
+
+async function generateDalleImage(prompt) {
+  try {
+    const res = await fetch('/api/dalle', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt })
+    });
+    const d = await res.json();
+    if (d.error) { console.warn('DALL-E:', d.error); return null; }
+    return d.image || null;
+  } catch(e) { console.warn(e); return null; }
+}
+
+async function callClaude(body) {
+  const res = await fetch('/api/claude', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  return await res.json();
+}
+
+async function generatePage() {
+  const text = document.getElementById('recipeInput').value.trim();
+  if (!text) { setStatus('Cole uma receita antes.'); return; }
+  clearError();
+  document.getElementById('btnGenerate').disabled = true;
+  document.getElementById('btnPNG').disabled = true;
+  document.getElementById('btnPDF').disabled = true;
+  setStatus('Analisando receita...');
+
+  try {
+    const prompt = `Analise esta receita e retorne APENAS JSON válido, sem markdown, sem backticks:
+{"titulo":"Nome completo","servings":"X porção/porções","tempo":"XX min","calorias":"≈ XXX kcal/porção","ingredientes":[{"qty":"quantidade+unidade em negrito","nome":"nome do ingrediente"}],"passos":[{"texto":"texto completo do passo","dallePrompt":"detailed English prompt for DALL-E 3: realistic close-up food photo of this specific cooking step, natural lighting, clean kitchen, no text, no words, no letters"}],"mainDallePrompt":"detailed English DALL-E 3 prompt: beautiful appetizing close-up photo of the final plated dish, food photography style, natural lighting, no text, no words","passosComImagem":[0,2,4]}
+
+Regras:
+- qty = quantidade+unidade apenas (ex: "1 scoop", "2 colheres de sopa")
+- nome = ingrediente apenas (ex: "de whey baunilha")
+- passosComImagem = índices dos 3 passos mais visuais
+- dallePrompt: descreva exatamente a ação do passo em inglês, muito específico
+
+Receita:\n${text}`;
+
+    const data = await callClaude({ model: CLAUDE_MODEL, max_tokens: 2000, messages: [{ role: "user", content: prompt }] });
+    if (data.error) { showError(JSON.stringify(data.error)); document.getElementById('btnGenerate').disabled = false; setStatus(''); return; }
+
+    const raw = data.content?.[0]?.text || '';
+    const match = raw.match(/\{[\s\S]*\}/);
+    if (!match) { showError('Erro ao interpretar receita.'); document.getElementById('btnGenerate').disabled = false; setStatus(''); return; }
+
+    const recipe = JSON.parse(match[0]);
+    recipeTitle = recipe.titulo || 'receita';
+    renderSkeleton(recipe);
+
+    setStatus('Gerando imagem principal com DALL-E 3...');
+    const mainImg = await generateDalleImage(recipe.mainDallePrompt);
+    const mainEl = document.getElementById('rpMainImg');
+    mainEl.innerHTML = mainImg
+      ? `<img class="rp-main-img" src="${mainImg}" alt="${recipe.titulo}" />`
+      : `<div class="rp-main-img-ph" style="background:#eee;color:#aaa;">imagem indisponível</div>`;
+
+    const passosComImg = recipe.passosComImagem || [];
+    setStatus(`Gerando ${passosComImg.length} imagens dos passos...`);
+
+    await Promise.all(passosComImg.map(async (idx) => {
+      if (!recipe.passos[idx]) return;
+      const img = await generateDalleImage(recipe.passos[idx].dallePrompt);
+      const el = document.getElementById(`step-img-${idx}`);
+      if (!el) return;
+      el.outerHTML = img ? `<img class="step-img" src="${img}" alt="passo ${idx+1}" />` : '';
+    }));
+
+    setStatus('✅ Pronto! Clique em Baixar PNG ou Baixar PDF.');
+    enableDownloads();
+  } catch(e) {
+    showError('Erro: ' + e.message);
+    setStatus('');
+  }
+  document.getElementById('btnGenerate').disabled = false;
+}
+
+function renderSkeleton(r) {
+  document.getElementById('a4Page').style.display = 'block';
+  document.getElementById('rpTitle').textContent = r.titulo;
+  document.getElementById('rpServings').textContent = r.servings;
+  document.getElementById('rpTempo').textContent = r.tempo;
+  document.getElementById('rpCalorias').textContent = r.calorias;
+
+  document.getElementById('rpMainImg').innerHTML = `<div class="rp-main-img-ph"><div class="spinner"></div><span>Gerando imagem...</span></div>`;
+
+  document.getElementById('rpIngredients').innerHTML = (r.ingredientes || []).map(i =>
+    `<li><span class="ing-qty">${i.qty}</span> ${i.nome}</li>`
+  ).join('');
+
+  const comImg = new Set(r.passosComImagem || []);
+  document.getElementById('rpSteps').innerHTML = (r.passos || []).map((s, i) => `
+    <div class="step">
+      <div class="step-num">${i+1}</div>
+      <div class="step-body">
+        <div class="step-text">${s.texto}</div>
+        ${comImg.has(i) ? `<div class="step-img-ph" id="step-img-${i}"><div class="spinner"></div></div>` : ''}
+      </div>
+    </div>`).join('');
+
+  document.getElementById('a4Page').scrollIntoView({ behavior: 'smooth' });
+}
+
+async function captureCanvas() {
+  const el = document.getElementById('a4Page');
+  return await html2canvas(el, { scale: 2, useCORS: true, allowTaint: true, backgroundColor: '#ffffff' });
+}
+
+async function downloadPNG() {
+  setStatus('Gerando PNG...');
+  document.getElementById('btnPNG').disabled = true;
+  try {
+    const canvas = await captureCanvas();
+    const link = document.createElement('a');
+    link.download = `${recipeTitle.replace(/\s+/g, '_')}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+    setStatus('✅ PNG baixado!');
+  } catch(e) { showError('Erro PNG: ' + e.message); setStatus(''); }
+  document.getElementById('btnPNG').disabled = false;
+}
+
+async function downloadPDF() {
+  setStatus('Gerando PDF...');
+  document.getElementById('btnPDF').disabled = true;
+  try {
+    const canvas = await captureCanvas();
+    const imgData = canvas.toDataURL('image/png');
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const pdfW = pdf.internal.pageSize.getWidth();
+    const pdfH = pdf.internal.pageSize.getHeight();
+    const imgH = pdfW * (canvas.height / canvas.width);
+    if (imgH <= pdfH) {
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfW, imgH);
+    } else {
+      let y = 0;
+      while (y < imgH) {
+        if (y > 0) pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, -y, pdfW, imgH);
+        y += pdfH;
+      }
+    }
+    pdf.save(`${recipeTitle.replace(/\s+/g, '_')}.pdf`);
+    setStatus('✅ PDF baixado!');
+  } catch(e) { showError('Erro PDF: ' + e.message); setStatus(''); }
+  document.getElementById('btnPDF').disabled = false;
+}
+</script>
+</body>
+</html>
